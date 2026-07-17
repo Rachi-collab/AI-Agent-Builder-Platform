@@ -4,7 +4,6 @@
   <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python Badge"/>
   <img src="https://img.shields.io/badge/FastAPI-0.109+-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI Badge"/>
   <img src="https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black" alt="JavaScript Badge"/>
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License Badge"/>
 </p>
 
 An intelligent, full-stack **AI Agent Builder Platform** that enables users to visually design, configure, and execute custom autonomous agents. It implements a robust **ReAct (Reasoning and Action)** execution loop, supporting tool integration, short-term memory persistence, and real-time thought-process logging via Server-Sent Events (SSE).
