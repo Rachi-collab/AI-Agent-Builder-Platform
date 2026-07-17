@@ -1,0 +1,16 @@
+# Python bytecode cache
+**/__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+
+# Pytest cache
+.pytest_cache/
+
+# Local databases and agent configuration files
+data/
+
+# Temporary test/debug files
+tests/search_debug.html
+tests/test_search.py
