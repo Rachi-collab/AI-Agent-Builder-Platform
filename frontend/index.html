@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Builder Platform</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar - Agent Browser -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-robot logo-icon animate-pulse"></i>
+                    <span>AgentBuilder</span>
+                </div>
+                <button id="btn-new-agent" class="btn btn-primary btn-sm">
+                    <i class="fa-solid fa-plus"></i> New Agent
+                </button>
+            </div>
+            
+            <div class="sidebar-search">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="agent-search" placeholder="Search agents...">
+            </div>
+            
+            <div class="agent-list-container">
+                <h3 class="section-title">My Agents</h3>
+                <ul id="agent-list" class="agent-list">
+                    <!-- Loaded dynamically -->
+                </ul>
+            </div>
+            
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="pulse-dot green"></span>
+                    <span id="backend-status">Connected to Local Engine</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <header class="workspace-header">
+                <div class="active-agent-info">
+                    <h1 id="active-agent-title">Select an Agent</h1>
+                    <p id="active-agent-desc">Select or create an agent from the sidebar to begin.</p>
+                </div>
+                <div class="workspace-tabs">
+                    <button class="tab-btn active" data-tab="tab-builder">
+                        <i class="fa-solid fa-sliders"></i> Configuration
+                    </button>
+                    <button class="tab-btn" data-tab="tab-playground" id="tab-playground-btn">
+                        <i class="fa-solid fa-terminal"></i> Playground
+                    </button>
+                </div>
+            </header>
+
+            <div class="workspace-body">
+                <!-- Tab: Builder / Configurations -->
+                <div id="tab-builder" class="tab-content active">
+                    <div class="builder-grid">
+                        <!-- Left configuration form -->
+                        <section class="card config-card">
+                            <h2 class="card-title"><i class="fa-solid fa-gear text-cyan"></i> Agent Settings</h2>
+                            <form id="agent-config-form">
+                                <input type="hidden" id="field-agent-id">
+                                
+                                <div class="form-group">
+                                    <label for="field-agent-name">Agent Name</label>
+                                    <input type="text" id="field-agent-name" placeholder="e.g., General Research assistant" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="field-agent-desc">Description</label>
+                                    <input type="text" id="field-agent-desc" placeholder="What is this agent's specialty?">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="field-system-prompt">System Prompt / Instructions</label>
+                                    <textarea id="field-system-prompt" rows="5" placeholder="Define guidelines, personality, and execution boundaries for your agent..."></textarea>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group col">
+                                        <label for="field-llm-provider">LLM Provider</label>
+                                        <select id="field-llm-provider">
+                                            <option value="mock">Local Simulator (No Key)</option>
+                                            <option value="gemini">Google Gemini</option>
+                                            <option value="openai">OpenAI</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col">
+                                        <label for="field-llm-model">Model</label>
+                                        <select id="field-llm-model">
+                                            <!-- Gemini Models -->
+                                            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                                            <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                                            <!-- OpenAI Models -->
+                                            <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                            <option value="gpt-4o">gpt-4o</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group" id="api-key-container" style="display: none;">
+                                    <label for="field-api-key" class="label-with-badge">
+                                        API Key 
+                                        <span class="badge badge-warning">Required for Live LLM</span>
+                                    </label>
+                                    <input type="password" id="field-api-key" placeholder="Enter API key for selected provider...">
+                                    <small class="helper-text">Key is kept in temporary memory and never stored on disk.</small>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group col">
+                                        <label for="field-temperature">Temperature: <span id="temp-val">0.7</span></label>
+                                        <input type="range" id="field-temperature" min="0.0" max="1.0" step="0.1" value="0.7">
+                                    </div>
+                                    <div class="form-group col">
+                                        <label for="field-memory-limit">Memory Window (Turns)</label>
+                                        <input type="number" id="field-memory-limit" min="0" max="50" value="10">
+                                    </div>
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-success" id="btn-save-agent">
+                                        <i class="fa-solid fa-floppy-disk"></i> Save Configuration
+                                    </button>
+                                    <button type="button" class="btn btn-danger" id="btn-delete-agent">
+                                        <i class="fa-solid fa-trash-can"></i> Delete Agent
+                                    </button>
+                                </div>
+                            </form>
+                        </section>
+
+                        <!-- Right Tools Management -->
+                        <section class="card tools-card">
+                            <h2 class="card-title"><i class="fa-solid fa-toolbox text-purple"></i> Available Tools</h2>
+                            
+                            <div class="tools-checklist">
+                                <div class="tool-item">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="tool-calculator" value="calculator">
+                                        <span class="checkmark"></span>
+                                        <div class="tool-info">
+                                            <span class="tool-name">Calculator <span class="badge badge-system">Built-in</span></span>
+                                            <span class="tool-desc">Evaluates safe mathematical expressions directly.</span>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="tool-item">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="tool-web-search" value="web_search">
+                                        <span class="checkmark"></span>
+                                        <div class="tool-info">
+                                            <span class="tool-name">Web Search <span class="badge badge-system">Built-in</span></span>
+                                            <span class="tool-desc">Fetches snippets from search index (uses live DuckDuckGo backend scraper).</span>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="tool-item">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="tool-web-fetch" value="web_fetch">
+                                        <span class="checkmark"></span>
+                                        <div class="tool-info">
+                                            <span class="tool-name">Web Fetcher <span class="badge badge-system">Built-in</span></span>
+                                            <span class="tool-desc">Extracts raw text content from URLs for full analysis.</span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="custom-tools-header">
+                                <h3 class="section-title">Custom HTTP API Tools</h3>
+                                <button type="button" id="btn-add-custom-tool" class="btn btn-secondary btn-sm">
+                                    <i class="fa-solid fa-plus"></i> Add API Tool
+                                </button>
+                            </div>
+                            
+                            <div id="custom-tools-list" class="custom-tools-list">
+                                <!-- Dynamically listed custom tools -->
+                                <p class="no-items-text">No custom HTTP tools added yet.</p>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- Tab: Chat Playground -->
+                <div id="tab-playground" class="tab-content">
+                    <div class="playground-layout">
+                        <!-- Chat Box panel -->
+                        <div class="chat-panel">
+                            <div class="chat-messages-container" id="chat-messages">
+                                <div class="chat-placeholder">
+                                    <i class="fa-regular fa-comments chat-placeholder-icon"></i>
+                                    <h3>Start a conversation</h3>
+                                    <p>Ask a question. The active tools will run and output step-by-step observations.</p>
+                                </div>
+                            </div>
+                            <div class="chat-input-bar">
+                                <input type="text" id="chat-input" placeholder="Ask your agent a question...">
+                                <button id="btn-send-message" class="btn btn-primary">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Live Console trace -->
+                        <div class="console-panel">
+                            <div class="console-header">
+                                <span><i class="fa-solid fa-terminal text-cyan"></i> ReAct Trace Stream</span>
+                                <button class="btn btn-clear-console" id="btn-clear-console">Clear Trace</button>
+                            </div>
+                            <div class="console-body" id="console-logs">
+                                <div class="console-placeholder">
+                                    <i class="fa-solid fa-code-commit console-placeholder-icon"></i>
+                                    <p>Reasoning loops and tool actions will stream here in real time.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Custom Tool Add Modal -->
+    <div id="custom-tool-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-network-wired"></i> Configure API Tool</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <form id="custom-tool-form">
+                <div class="form-group">
+                    <label for="modal-tool-name">Tool Name (Alphanumeric only, no spaces)</label>
+                    <input type="text" id="modal-tool-name" pattern="^[a-zA-Z0-9_]+$" placeholder="e.g., github_search" required>
+                </div>
+                <div class="form-group">
+                    <label for="modal-tool-desc">Description (Help LLM know when to call this)</label>
+                    <textarea id="modal-tool-desc" rows="2" placeholder="e.g., Search user profiles on GitHub. Input is username." required></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-3">
+                        <label for="modal-tool-method">HTTP Method</label>
+                        <select id="modal-tool-method">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                    </div>
+                    <div class="form-group col-9">
+                        <label for="modal-tool-url">Endpoint URL (Use `{query}` for input injection)</label>
+                        <input type="url" id="modal-tool-url" placeholder="e.g., https://api.github.com/users/{query}" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="modal-tool-headers">Headers (JSON format, optional)</label>
+                    <textarea id="modal-tool-headers" rows="2" placeholder='e.g., {"Authorization": "token XXX"}'></textarea>
+                </div>
+                <div class="form-group" id="body-template-container" style="display: none;">
+                    <label for="modal-tool-body">POST Request Body (Template, use `{query}` for input injection)</label>
+                    <textarea id="modal-tool-body" rows="3" placeholder='e.g., {"search_term": "{query}"}'></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary close-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Tool</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Script assets -->
+    <script src="app.js"></script>
+</body>
+</html>
