@@ -165,6 +165,31 @@ def api_delete_agent(agent_id: str):
 def api_get_session(session_id: str):
     return load_session(session_id)
 
+@app.get("/api/agents/{agent_id}/sessions", response_model=List[str])
+def api_list_agent_sessions(agent_id: str):
+    sessions = []
+    if not os.path.exists(SESSIONS_DIR):
+        return sessions
+    for file_name in os.listdir(SESSIONS_DIR):
+        if file_name.endswith(".json"):
+            file_path = os.path.join(SESSIONS_DIR, file_name)
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data.get("agent_id") == agent_id:
+                        sessions.append(data.get("session_id"))
+            except Exception:
+                pass
+    return sorted(sessions)
+
+@app.delete("/api/sessions/{session_id}")
+def api_delete_session(session_id: str):
+    file_path = os.path.join(SESSIONS_DIR, f"{session_id}.json")
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        return {"status": "success", "message": f"Session {session_id} deleted."}
+    raise HTTPException(status_code=404, detail="Session not found")
+
 @app.post("/api/agents/run/stream")
 def api_run_agent_stream(req: RunRequest):
     agent = get_agent_by_id(req.agent_id)
