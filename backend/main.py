@@ -9,10 +9,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any, Optional
 
-from backend.models import AgentConfig, CustomToolConfig, ChatSession, ChatMessage, ReActStep, RunRequest
+from backend.models import AgentConfig, CustomToolConfig, ChatSession, ChatMessage, ReActStep, RunRequest, MultiAgentRunRequest
 from backend.react_engine import execute_react_loop
 
 app = FastAPI(title="AI Agent Builder Platform")
+
+@app.get("/favicon.ico")
+def get_favicon():
+    from fastapi.responses import Response
+    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#0b0f19"/><text y="70" x="18" font-size="60">🤖</text></svg>"""
+    return Response(content=svg_icon, media_type="image/svg+xml")
 
 # CORS middleware for testing
 app.add_middleware(
@@ -91,7 +97,7 @@ def create_default_agents():
                 id="math-genius",
                 name="Math Genius Agent",
                 description="An expert in calculations, formulas, and math problem-solving.",
-                system_prompt="Always show your steps. If you encounter a complex equation, break it down first.",
+                system_prompt="Always show your steps. If you encounter a complex equation, break it down first. Structure your final answer with clear bullet points.",
                 llm_provider="mock",
                 llm_model="gemini-1.5-flash",
                 temperature=0.2,
@@ -101,7 +107,7 @@ def create_default_agents():
                 id="web-researcher",
                 name="Research Assistant",
                 description="Performs search engine lookup and text extraction to answer factual queries.",
-                system_prompt="Be concise and reference search source snippets where appropriate. Make sure URLs are well formed.",
+                system_prompt="Be concise and reference search source snippets where appropriate. Make sure URLs are well formed. Structure your findings clearly in structured bullet points.",
                 llm_provider="mock",
                 llm_model="gemini-1.5-flash",
                 temperature=0.5,
@@ -111,7 +117,7 @@ def create_default_agents():
                 id="all-rounder",
                 name="Generalist Agent",
                 description="Uses all tools to resolve general user queries and workflows.",
-                system_prompt="Select the most appropriate tool to solve the question. Keep answer structures clean and clear.",
+                system_prompt="Select the most appropriate tool to solve the question. Keep answer structures clean and clear. Always use bullet points for final summaries and lists of findings.",
                 llm_provider="mock",
                 llm_model="gemini-1.5-flash",
                 temperature=0.7,
@@ -246,6 +252,116 @@ def api_run_agent_stream(req: RunRequest):
             content=assistant_content,
             timestamp=time.time(),
             steps=steps
+        )
+        session.messages.append(assistant_msg)
+        save_session(session)
+        
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.post("/api/agents/multi-run/stream")
+def api_multi_run_agent_stream(req: MultiAgentRunRequest):
+    agent1 = get_agent_by_id(req.agent_id_1)
+    agent2 = get_agent_by_id(req.agent_id_2)
+    if not agent1 or not agent2:
+        raise HTTPException(status_code=404, detail="One or both agents not found")
+        
+    session = load_session(req.session_id)
+    session.agent_id = agent1.id
+    
+    # Append user message
+    user_msg = ChatMessage(role="user", content=req.message, timestamp=time.time())
+    session.messages.append(user_msg)
+    
+    def event_generator():
+        agent1_response = ""
+        agent2_response = ""
+        final_response = ""
+        
+        # Round 1: Primary Agent executes query
+        yield f"data: {json.dumps({'type': 'status', 'content': f'Round 1: Primary Agent {agent1.name} starts...' })}\n\n"
+        
+        # Prepare previous chat messages (excluding current message)
+        history_for_loop = session.messages[:-1]
+        
+        for event in execute_react_loop(agent1, req.message, history_for_loop, req.api_key):
+            event_type = event["type"]
+            content = event["content"]
+            mapped_event = {
+                "type": f"agent1_{event_type}" if event_type != "error" else "error",
+                "content": content
+            }
+            yield f"data: {json.dumps(mapped_event)}\n\n"
+            
+            if event_type == "final_answer":
+                agent1_response = content
+                
+        if not agent1_response:
+            agent1_response = "Primary agent failed to draft an answer."
+            
+        # Round 2: Reviewer Agent reviews Agent 1's draft
+        yield f"data: {json.dumps({'type': 'status', 'content': f'Round 2: Reviewer Agent {agent2.name} evaluating draft...' })}\n\n"
+        
+        reviewer_prompt = (
+            f"Review this draft response to the user query: '{req.message}'.\n"
+            f"Draft answer: '{agent1_response}'.\n"
+            f"Provide constructive critique, point out any formatting or logical errors, and list suggestions using structured bullet points."
+        )
+        
+        for event in execute_react_loop(agent2, reviewer_prompt, [], req.api_key):
+            event_type = event["type"]
+            content = event["content"]
+            mapped_event = {
+                "type": f"agent2_{event_type}" if event_type != "error" else "error",
+                "content": content
+            }
+            yield f"data: {json.dumps(mapped_event)}\n\n"
+            
+            if event_type == "final_answer":
+                agent2_response = content
+                
+        if not agent2_response:
+            agent2_response = "Reviewer agent did not provide critique."
+            
+        # Round 3: Primary Agent refines the draft based on critique
+        yield f"data: {json.dumps({'type': 'status', 'content': f'Round 3: Primary Agent {agent1.name} refining final response...' })}\n\n"
+        
+        refinement_prompt = (
+            f"Incorporate feedback and refine your answer to query: '{req.message}'.\n"
+            f"Your initial draft: '{agent1_response}'.\n"
+            f"Reviewer feedback: '{agent2_response}'.\n"
+            f"Generate a polished, final comprehensive response. Ensure the main findings and instructions are structured clearly in bullet points."
+        )
+        
+        for event in execute_react_loop(agent1, refinement_prompt, [], req.api_key):
+            event_type = event["type"]
+            content = event["content"]
+            
+            mapped_type = event_type
+            if event_type == "thought":
+                mapped_type = "refine_thought"
+            elif event_type == "action":
+                mapped_type = "refine_action"
+            elif event_type == "observation":
+                mapped_type = "refine_observation"
+                
+            mapped_event = {
+                "type": mapped_type,
+                "content": content
+            }
+            yield f"data: {json.dumps(mapped_event)}\n\n"
+            
+            if event_type == "final_answer":
+                final_response = content
+                
+        if not final_response:
+            final_response = agent1_response
+            
+        # Save complete refined response
+        assistant_msg = ChatMessage(
+            role="assistant",
+            content=final_response,
+            timestamp=time.time(),
+            steps=[]
         )
         session.messages.append(assistant_msg)
         save_session(session)
