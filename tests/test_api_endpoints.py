@@ -233,4 +233,38 @@ def test_react_knowledge_retrieval_stream():
     client.delete("/api/agents/kb-agent-test")
     client.delete(f"/api/sessions/{session_id}")
 
+def test_favicon_ico():
+    client = TestClient(app)
+    response = client.get("/favicon.ico")
+    assert response.status_code == 200
+    assert "image/svg+xml" in response.headers["content-type"]
+
+def test_multi_agent_stream_loop():
+    client = TestClient(app)
+    session_id = f"session_multi_{uuid.uuid4()}"
+    payload = {
+        "agent_id_1": "math-genius",
+        "agent_id_2": "all-rounder",
+        "session_id": session_id,
+        "message": "Calculate 5 + 5 and verify it.",
+        "api_key": None
+    }
+    events = []
+    with client.stream("POST", "/api/agents/multi-run/stream", json=payload) as response:
+        assert response.status_code == 200
+        for line in response.iter_lines():
+            if line.startswith("data: "):
+                event_data = json.loads(line[6:])
+                events.append(event_data)
+                
+    # Check that round status updates and agent events were streamed
+    event_types = [e["type"] for e in events]
+    assert any("status" in t for t in event_types)
+    assert any("agent1_final_answer" in t for t in event_types)
+    assert any("agent2_final_answer" in t for t in event_types)
+    assert any("final_answer" in t for t in event_types)
+    
+    # Clean up
+    client.delete(f"/api/sessions/{session_id}")
+
 
