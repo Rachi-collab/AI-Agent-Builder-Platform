@@ -54,3 +54,48 @@ def test_get_agent_tools():
     assert "calculator" in tools
     assert "web_search" in tools
     assert "web_fetch" not in tools
+
+def test_knowledge_retrieval_tool():
+    from backend.tools import KnowledgeRetrievalTool
+    docs = [
+        "Tokyo is the capital of Japan.",
+        "Python was designed by Guido van Rossum and released in 1991."
+    ]
+    tool = KnowledgeRetrievalTool(docs)
+    
+    # Check match for query containing designed/Guido
+    res1 = tool.run("Who designed python?")
+    assert "Guido van Rossum" in res1
+    assert "Result [1]" in res1
+    
+    # Check query for Tokyo
+    res2 = tool.run("What is the capital of Japan?")
+    assert "Tokyo" in res2
+    
+    # Check query returning nothing
+    res3 = tool.run("Something completely random")
+    assert "No relevant facts found" in res3
+
+def test_python_script_tool_valid():
+    from backend.tools import PythonScriptTool
+    code = """
+def run(input_val):
+    import math
+    return f"Square root of {input_val} is {math.sqrt(float(input_val))}"
+"""
+    tool = PythonScriptTool("test_code", "test", code)
+    res = tool.run("16")
+    assert "Square root of 16 is 4.0" in res
+
+def test_python_script_tool_sandbox_restricted():
+    from backend.tools import PythonScriptTool
+    # Try using blocked builtin/module import
+    code = """
+def run(input_val):
+    import os
+    return str(os.listdir('.'))
+"""
+    tool = PythonScriptTool("test_code", "test", code)
+    res = tool.run("")
+    # It should raise an error message during execution
+    assert "Error" in res
