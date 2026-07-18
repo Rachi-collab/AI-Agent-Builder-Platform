@@ -40,6 +40,20 @@ const btnSendMessage = document.getElementById("btn-send-message");
 const threadsList = document.getElementById("threads-list");
 const btnNewSession = document.getElementById("btn-new-session");
 
+// Collaboration UI Elements
+const toggleCollabMode = document.getElementById("toggle-collab-mode");
+const collabSelectorsRow = document.getElementById("collab-selectors-row");
+const collabDiagramContainer = document.getElementById("collab-diagram-container");
+const selectAgentPrimary = document.getElementById("select-agent-primary");
+const selectAgentReviewer = document.getElementById("select-agent-reviewer");
+const nodeAgent1Name = document.getElementById("node-agent1-name");
+const nodeAgent2Name = document.getElementById("node-agent2-name");
+const statusAgent1 = document.getElementById("status-agent1");
+const statusAgent2 = document.getElementById("status-agent2");
+const statusFinal = document.getElementById("status-final");
+const arrow1to2 = document.getElementById("arrow-1-to-2");
+const arrow2to1 = document.getElementById("arrow-2-to-1");
+
 // Console/Trace UI Elements
 const consoleLogs = document.getElementById("console-logs");
 const btnClearConsole = document.getElementById("btn-clear-console");
@@ -135,6 +149,22 @@ function setupEventHandlers() {
     // Playground Thread Triggers
     btnNewSession.addEventListener("click", createNewSession);
     
+    // Multi-Agent Collaboration Toggle Trigger
+    toggleCollabMode.addEventListener("change", (e) => {
+        if (e.target.checked) {
+            collabSelectorsRow.style.display = "flex";
+            collabDiagramContainer.style.display = "flex";
+            populateCollabAgentDropdowns();
+            updateCollabDiagramNames();
+        } else {
+            collabSelectorsRow.style.display = "none";
+            collabDiagramContainer.style.display = "none";
+        }
+    });
+    
+    selectAgentPrimary.addEventListener("change", updateCollabDiagramNames);
+    selectAgentReviewer.addEventListener("change", updateCollabDiagramNames);
+    
     // Clear Console
     btnClearConsole.addEventListener("click", () => {
         consoleLogs.innerHTML = `
@@ -188,13 +218,14 @@ async function fetchAgents() {
         if (response.ok) {
             agents = await response.json();
             renderAgentList();
+            populateCollabAgentDropdowns();
         }
     } catch (err) {
         console.error("Failed to load agents from API", err);
     }
 }
 
-// Render Sidebar List
+// Render Sidebar Agent List
 function renderAgentList() {
     agentListEl.innerHTML = "";
     
@@ -211,6 +242,42 @@ function renderAgentList() {
         li.addEventListener("click", () => selectAgent(agent.id));
         agentListEl.appendChild(li);
     });
+}
+
+// Populate dropdown list options for agent collaboration
+function populateCollabAgentDropdowns() {
+    selectAgentPrimary.innerHTML = "";
+    selectAgentReviewer.innerHTML = "";
+    
+    if (agents.length === 0) return;
+    
+    agents.forEach(agent => {
+        const opt1 = document.createElement("option");
+        opt1.value = agent.id;
+        opt1.textContent = agent.name;
+        selectAgentPrimary.appendChild(opt1);
+        
+        const opt2 = document.createElement("option");
+        opt2.value = agent.id;
+        opt2.textContent = agent.name;
+        selectAgentReviewer.appendChild(opt2);
+    });
+    
+    // Set default select index values
+    if (activeAgent) {
+        selectAgentPrimary.value = activeAgent.id;
+        // Select the next agent as default reviewer
+        const otherAgents = agents.filter(a => a.id !== activeAgent.id);
+        if (otherAgents.length > 0) {
+            selectAgentReviewer.value = otherAgents[0].id;
+        }
+    }
+}
+
+// Update text inside collaboration flowchart map
+function updateCollabDiagramNames() {
+    nodeAgent1Name.textContent = selectAgentPrimary.options[selectAgentPrimary.selectedIndex]?.text || "Primary Agent";
+    nodeAgent2Name.textContent = selectAgentReviewer.options[selectAgentReviewer.selectedIndex]?.text || "Reviewer Agent";
 }
 
 // Filter Sidebar List
@@ -285,14 +352,19 @@ async function selectAgent(agentId) {
             // Render custom tools list
             renderCustomToolsList();
             
-            // Reset visual pipeline to idle
+            // Reset visual state
             setPipelineState("idle");
+            setCollabDiagramState("idle");
             
             // Session Setup - load multiple conversation threads for this agent
             await fetchAgentSessions(activeAgent.id);
             
             // Update active sidebar state
             renderAgentList();
+            
+            // Sync collab dropdown default selections
+            populateCollabAgentDropdowns();
+            updateCollabDiagramNames();
         }
     } catch (err) {
         console.error("Failed to select agent", err);
@@ -342,7 +414,6 @@ function renderThreadsList(sessions) {
         `;
         
         li.addEventListener("click", async (e) => {
-            // Prevent switching if clicking delete
             if (e.target.closest(".btn-delete-thread")) return;
             currentSessionId = sessId;
             renderThreadsList(sessions);
@@ -365,7 +436,6 @@ async function deleteSession(sessionId) {
     try {
         const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
         if (response.ok) {
-            // Refresh
             if (activeAgent) {
                 await fetchAgentSessions(activeAgent.id);
             }
@@ -375,7 +445,7 @@ async function deleteSession(sessionId) {
     }
 }
 
-// Create new blank conversation thread
+// Create new empty conversation thread
 async function createNewSession() {
     if (!activeAgent || !activeAgent.id) {
         alert("Please save your agent configuration first.");
@@ -386,7 +456,6 @@ async function createNewSession() {
     chatMessages.innerHTML = "";
     renderChatPlaceholder();
     
-    // Add current thread to UI lists
     if (activeAgent) {
         await fetchAgentSessions(activeAgent.id);
     }
@@ -453,7 +522,6 @@ function createNewAgentForm() {
     
     switchTab("tab-builder");
     
-    // Deselect list items
     document.querySelectorAll(".agent-item").forEach(item => item.classList.remove("active"));
 }
 
@@ -666,9 +734,64 @@ function removeCustomTool(index) {
     }
 }
 
-// Chat functions
+// Formatting text (lists, preformatted blocks, bolding) to mimic markdown
+function formatMessageContent(content) {
+    if (!content) return "";
+    
+    let html = escapeHTML(content);
+    
+    // Parse block code sequences: ```lang \n code ```
+    html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+        return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+    });
+    
+    // Parse inline code blocks: `code`
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Parse bold text: **text**
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    // Parse bullet list lines
+    const lines = html.split("\n");
+    let inList = false;
+    let listHTML = [];
+    
+    for (let line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+            if (!inList) {
+                listHTML.push("<ul>");
+                inList = true;
+            }
+            listHTML.push(`<li>${trimmed.slice(2)}</li>`);
+        } else {
+            if (inList) {
+                listHTML.push("</ul>");
+                inList = false;
+            }
+            listHTML.push(line);
+        }
+    }
+    if (inList) {
+        listHTML.push("</ul>");
+    }
+    
+    html = listHTML.join("\n");
+    
+    // Line breaks handling
+    html = html.replace(/\n\n/g, "<br><br>");
+    html = html.replace(/\n/g, "<br>");
+    
+    // Clean up breaks adjoining block tags
+    html = html.replace(/<\/ul><br>/g, "</ul>");
+    html = html.replace(/<\/pre><br>/g, "</pre>");
+    html = html.replace(/<pre><br>/g, "<pre>");
+    
+    return html;
+}
+
+// Chat bubble appends
 function appendMessageBubble(role, content) {
-    // Remove placeholder if present
     const placeholder = chatMessages.querySelector(".chat-placeholder");
     if (placeholder) {
         chatMessages.innerHTML = "";
@@ -677,23 +800,38 @@ function appendMessageBubble(role, content) {
     const bubble = document.createElement("div");
     bubble.className = `message-bubble ${role}`;
     
-    // Replace newlines with HTML breaks to preserve formatting
-    bubble.innerHTML = content.replace(/\n/g, "<br>");
+    if (role === "assistant") {
+        bubble.innerHTML = formatMessageContent(content);
+    } else {
+        bubble.innerHTML = escapeHTML(content).replace(/\n/g, "<br>");
+    }
     
     chatMessages.appendChild(bubble);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// Pipeline visualizer controls
+// Append specialized bubble during multi-agent run
+function appendCollabMessageBubble(agentName, content, agentClass) {
+    const placeholder = chatMessages.querySelector(".chat-placeholder");
+    if (placeholder) {
+        chatMessages.innerHTML = "";
+    }
+    
+    const bubble = document.createElement("div");
+    bubble.className = `message-bubble assistant ${agentClass}`;
+    bubble.innerHTML = `<strong>🤖 ${agentName} Draft/Review:</strong><br>${formatMessageContent(content)}`;
+    chatMessages.appendChild(bubble);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Pipeline visualizer controls (Single Agent)
 function setPipelineState(state) {
-    // Remove active class from all steps and connectors
     const steps = [pipeIdle, pipeThought, pipeAction, pipeObservation, pipeFinished];
     steps.forEach(step => step.classList.remove("active"));
     
     const connectors = document.querySelectorAll(".pipeline-connector");
     connectors.forEach(conn => conn.classList.remove("active"));
     
-    // Reset indicator classes
     indicatorDot.className = "pulse-dot";
     
     switch (state) {
@@ -736,6 +874,65 @@ function setPipelineState(state) {
     }
 }
 
+// Collaboration flowchart map highlights
+function setCollabDiagramState(state) {
+    const node1 = document.getElementById("node-agent1");
+    const node2 = document.getElementById("node-agent2");
+    const nodeFinal = document.getElementById("node-final");
+    
+    const arrow1 = document.getElementById("arrow-1-to-2");
+    const arrow2 = document.getElementById("arrow-2-to-1");
+    
+    const nodes = [node1, node2, nodeFinal];
+    const arrows = [arrow1, arrow2];
+    
+    nodes.forEach(n => n.classList.remove("active"));
+    arrows.forEach(a => a.classList.remove("active"));
+    
+    statusAgent1.textContent = "Idle";
+    statusAgent2.textContent = "Idle";
+    statusFinal.textContent = "Idle";
+    
+    indicatorDot.className = "pulse-dot";
+    
+    switch (state) {
+        case "idle":
+            indicatorDot.classList.add("grey");
+            indicatorText.textContent = "Agent is Idle";
+            break;
+            
+        case "agent1_thinking":
+            node1.classList.add("active");
+            statusAgent1.textContent = "Thinking...";
+            indicatorDot.classList.add("orange");
+            indicatorText.textContent = `${nodeAgent1Name.textContent} is drafting...`;
+            break;
+            
+        case "reviewer_thinking":
+            node2.classList.add("active");
+            arrow1.classList.add("active");
+            statusAgent2.textContent = "Evaluating...";
+            indicatorDot.classList.add("purple");
+            indicatorText.textContent = `${nodeAgent2Name.textContent} is reviewing draft...`;
+            break;
+            
+        case "refinement":
+            node1.classList.add("active");
+            arrow2.classList.add("active");
+            statusAgent1.textContent = "Refining...";
+            indicatorDot.classList.add("cyan");
+            indicatorText.textContent = `${nodeAgent1Name.textContent} incorporating critiques...`;
+            break;
+            
+        case "finished":
+            nodeFinal.classList.add("active");
+            statusFinal.textContent = "Done";
+            indicatorDot.classList.add("green");
+            indicatorText.textContent = "Refinement finished!";
+            break;
+    }
+}
+
 // Main chat sender & EventStream processing
 async function sendMessage() {
     const text = chatInput.value.trim();
@@ -754,96 +951,174 @@ async function sendMessage() {
     // Clear Console for fresh trace
     consoleLogs.innerHTML = "";
     
-    // Set visual state to thinking
-    setPipelineState("thought");
-    
     // Switch to playground tab to show the terminal trace in real-time
     tabPlaygroundBtn.click();
     
     // Get active provider key
     const apiKey = fieldApiKey.value.trim() || null;
     
-    // Build payload
-    const payload = {
-        agent_id: activeAgent.id,
-        session_id: currentSessionId,
-        message: text,
-        api_key: apiKey
-    };
+    const collabActive = toggleCollabMode.checked;
     
     // Append typing bubble
     appendMessageBubble("assistant", "Thinking...");
     const bubbles = chatMessages.querySelectorAll(".message-bubble.assistant");
     const typingBubble = bubbles[bubbles.length - 1];
     
-    try {
-        const response = await fetch("/api/agents/run/stream", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
-        });
+    if (collabActive) {
+        // Multi-Agent Collaboration Mode run
+        setCollabDiagramState("agent1_thinking");
         
-        if (!response.ok) {
-            typingBubble.innerHTML = "Error: Failed to stream reasoning steps. Check terminal connection.";
-            typingBubble.classList.add("error");
-            setPipelineState("idle");
-            return;
-        }
+        const payload = {
+            agent_id_1: selectAgentPrimary.value,
+            agent_id_2: selectAgentReviewer.value,
+            session_id: currentSessionId,
+            message: text,
+            api_key: apiKey
+        };
         
-        // Stream reading
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        
-        let buffer = "";
-        let finalAnswerText = "";
-        
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
+        try {
+            const response = await fetch("/api/agents/multi-run/stream", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
             
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
+            if (!response.ok) {
+                typingBubble.innerHTML = "Error: Failed to stream collaboration steps.";
+                typingBubble.classList.add("error");
+                setCollabDiagramState("idle");
+                return;
+            }
             
-            // Keep the last segment in buffer if incomplete
-            buffer = lines.pop();
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
             
-            for (const line of lines) {
-                const cleanLine = line.trim();
-                if (cleanLine.startsWith("data: ")) {
-                    try {
-                        const event = JSON.parse(cleanLine.slice(6));
-                        processTraceEvent(event);
-                        
-                        if (event.type === "final_answer") {
-                            finalAnswerText = event.content;
+            let buffer = "";
+            let finalAnswerText = "";
+            
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                
+                // Keep the last segment in buffer if incomplete
+                buffer = lines.pop();
+                
+                for (const line of lines) {
+                    const cleanLine = line.trim();
+                    if (cleanLine.startsWith("data: ")) {
+                        try {
+                            const event = JSON.parse(cleanLine.slice(6));
+                            processCollabTraceEvent(event, typingBubble);
+                            
+                            if (event.type === "final_answer") {
+                                finalAnswerText = event.content;
+                            }
+                        } catch (parseErr) {
+                            console.error("Error parsing collab event line", cleanLine, parseErr);
                         }
-                    } catch (parseErr) {
-                        console.error("Error parsing event line", cleanLine, parseErr);
                     }
                 }
             }
+            
+            // Replace typing bubble with the full final answer text
+            if (finalAnswerText) {
+                typingBubble.innerHTML = formatMessageContent(finalAnswerText);
+            } else {
+                typingBubble.innerHTML = "Completed collaboration draft.";
+            }
+            setCollabDiagramState("finished");
+            setTimeout(() => setCollabDiagramState("idle"), 4000);
+            
+        } catch (err) {
+            typingBubble.innerHTML = `Request Exception: ${err.message}`;
+            typingBubble.classList.add("error");
+            setCollabDiagramState("idle");
+            console.error(err);
         }
+    } else {
+        // Single Agent standard run
+        setPipelineState("thought");
         
-        // Replace typing bubble with the full final answer text
-        if (finalAnswerText) {
-            typingBubble.innerHTML = finalAnswerText.replace(/\n/g, "<br>");
-        } else {
-            typingBubble.innerHTML = "Completed run, but no final answer was extracted.";
+        const payload = {
+            agent_id: activeAgent.id,
+            session_id: currentSessionId,
+            message: text,
+            api_key: apiKey
+        };
+        
+        try {
+            const response = await fetch("/api/agents/run/stream", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!response.ok) {
+                typingBubble.innerHTML = "Error: Failed to stream reasoning steps. Check terminal connection.";
+                typingBubble.classList.add("error");
+                setPipelineState("idle");
+                return;
+            }
+            
+            // Stream reading
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            
+            let buffer = "";
+            let finalAnswerText = "";
+            
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                
+                // Keep the last segment in buffer if incomplete
+                buffer = lines.pop();
+                
+                for (const line of lines) {
+                    const cleanLine = line.trim();
+                    if (cleanLine.startsWith("data: ")) {
+                        try {
+                            const event = JSON.parse(cleanLine.slice(6));
+                            processTraceEvent(event);
+                            
+                            if (event.type === "final_answer") {
+                                finalAnswerText = event.content;
+                            }
+                        } catch (parseErr) {
+                            console.error("Error parsing event line", cleanLine, parseErr);
+                        }
+                    }
+                }
+            }
+            
+            // Replace typing bubble with the full final answer text
+            if (finalAnswerText) {
+                typingBubble.innerHTML = formatMessageContent(finalAnswerText);
+            } else {
+                typingBubble.innerHTML = "Completed run, but no final answer was extracted.";
+            }
+            
+        } catch (err) {
+            typingBubble.innerHTML = `Request Exception: ${err.message}`;
+            typingBubble.classList.add("error");
+            setPipelineState("idle");
+            console.error(err);
         }
-        
-    } catch (err) {
-        typingBubble.innerHTML = `Request Exception: ${err.message}`;
-        typingBubble.classList.add("error");
-        setPipelineState("idle");
-        console.error(err);
     }
 }
 
-// Process single Trace Event to terminal logs
+// Process single Trace Event to terminal logs (Single Agent)
 function processTraceEvent(event) {
-    // Remove console placeholder if present
     const placeholder = consoleLogs.querySelector(".console-placeholder");
     if (placeholder) {
         consoleLogs.innerHTML = "";
@@ -872,6 +1147,73 @@ function processTraceEvent(event) {
     
     let title = type;
     if (type === "final_answer") title = "Final Answer";
+    
+    stepDiv.innerHTML = `
+        <span class="log-title">${title}</span>
+        <div class="log-content">${escapeHTML(content)}</div>
+    `;
+    
+    consoleLogs.appendChild(stepDiv);
+    consoleLogs.scrollTop = consoleLogs.scrollHeight;
+}
+
+// Process Multi-Agent collaboration trace events to console and updates visual nodes
+function processCollabTraceEvent(event, typingBubble) {
+    const placeholder = consoleLogs.querySelector(".console-placeholder");
+    if (placeholder) {
+        consoleLogs.innerHTML = "";
+    }
+    
+    const type = event.type;
+    const content = event.content;
+    
+    // Status update event - shows inside the typing bubble
+    if (type === "status") {
+        typingBubble.innerHTML = `<em>${content}</em>`;
+        return;
+    }
+    
+    // Match event flags to flowchart highlights
+    if (type.startsWith("agent1_")) {
+        const stepType = type.replace("agent1_", "");
+        if (stepType === "thought" || stepType === "action" || stepType === "observation") {
+            setCollabDiagramState("agent1_thinking");
+        } else if (stepType === "final_answer") {
+            // Append intermediate draft bubble
+            appendCollabMessageBubble(
+                document.getElementById("node-agent1-name").textContent,
+                content,
+                "agent1"
+            );
+            setCollabDiagramState("reviewer_thinking");
+        }
+    } else if (type.startsWith("agent2_")) {
+        const stepType = type.replace("agent2_", "");
+        if (stepType === "thought" || stepType === "action" || stepType === "observation") {
+            setCollabDiagramState("reviewer_thinking");
+        } else if (stepType === "final_answer") {
+            // Append reviewer's critique bubble
+            appendCollabMessageBubble(
+                document.getElementById("node-agent2-name").textContent,
+                content,
+                "agent2"
+            );
+            setCollabDiagramState("refinement");
+        }
+    } else if (type.startsWith("refine_")) {
+        setCollabDiagramState("refinement");
+    } else if (type === "final_answer") {
+        setCollabDiagramState("finished");
+    } else if (type === "error") {
+        setCollabDiagramState("idle");
+    }
+    
+    // Create log trace line
+    const stepDiv = document.createElement("div");
+    stepDiv.className = `log-step ${type}`;
+    
+    let title = type.replace("agent1_", "Primary Agent ").replace("agent2_", "Reviewer Agent ").replace("refine_", "Refined ");
+    if (type === "final_answer") title = "Final Refined Answer";
     
     stepDiv.innerHTML = `
         <span class="log-title">${title}</span>
