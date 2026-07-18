@@ -46,3 +46,10 @@ class RunRequest(BaseModel):
     session_id: str
     message: str
     api_key: Optional[str] = None
+
+class MultiAgentRunRequest(BaseModel):
+    agent_id_1: str
+    agent_id_2: str
+    session_id: str
+    message: str
+    api_key: Optional[str] = None
