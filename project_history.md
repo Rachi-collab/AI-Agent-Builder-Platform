@@ -38,6 +38,8 @@ This document details the chronological development history, architectural desig
   - **Visual Reasoning pipeline**: Designed a neon-glowing animation bar representing the active execution stage (Ready, Thought, Tool Execution, Observation, Completed).
   - **Semantic Agent Memory**: Added a custom facts panel to save background documents and designed a keyword overlap retrieval tool (`knowledge_retrieval`).
   - **Sandboxed Python Tools**: Created a Python script execution tool using `exec` and restricted globals to safely run user-supplied code templates while allowing pre-approved module imports (`math`, `re`, `json`, `datetime`).
+  - **Multi-Agent Orchestration**: Integrated a 3-stage streaming collaboration flow (drafting, critiquing, refining) with visual flow node highlight animations and primary/reviewer agent selectors.
+  - **HTML Formatting & Favicons**: Designed a rich markdown-to-HTML parser (bullet items, bold highlights, and code blocks) and added a robot-emoji SVG favicon route to resolve HTTP 404 warnings.
 
 ---
 
@@ -58,9 +60,11 @@ This document details the chronological development history, architectural desig
 
 ## 🧪 Testing Summary
 
-A comprehensive test suite verifies the platform stability. All 13 tests pass:
+A comprehensive test suite verifies the platform stability. All 15 tests pass:
 - Core parser and tools registry resolution.
 - Live DuckDuckGo search matching.
 - Safe script executor boundaries (allows mathematical evaluations, blocks `import os`).
 - Multi-session thread lifecycle (creation, indexing, deletion).
 - Context retrieval engine relevance checking.
+- Favicon SVG payload retrieval verification.
+- Multi-agent collaboration flow SSE packet streams.
