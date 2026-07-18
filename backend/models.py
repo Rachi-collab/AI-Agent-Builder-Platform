@@ -4,10 +4,12 @@ from typing import List, Optional, Dict, Any
 class CustomToolConfig(BaseModel):
     name: str
     description: str
-    url: str
+    tool_type: str = "http"  # "http" or "python"
+    url: Optional[str] = None
     method: str = "GET"
     headers: Optional[Dict[str, str]] = None
     body_template: Optional[str] = None
+    python_code: Optional[str] = None
 
 class AgentConfig(BaseModel):
     id: str
@@ -20,6 +22,7 @@ class AgentConfig(BaseModel):
     tools: List[str] = []
     memory_limit: int = 10
     custom_tools: List[CustomToolConfig] = []
+    knowledge_base: List[str] = []
 
 class ReActStep(BaseModel):
     thought: str
