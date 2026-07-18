@@ -24,6 +24,7 @@ const fieldTemp = document.getElementById("field-temperature");
 const tempVal = document.getElementById("temp-val");
 const fieldMemLimit = document.getElementById("field-memory-limit");
 const apiKeyContainer = document.getElementById("api-key-container");
+const fieldKnowledgeBase = document.getElementById("field-knowledge-base");
 
 // Tools UI Elements
 const toolCalculator = document.getElementById("tool-calculator");
@@ -36,15 +37,29 @@ const btnAddCustomTool = document.getElementById("btn-add-custom-tool");
 const chatMessages = document.getElementById("chat-messages");
 const chatInput = document.getElementById("chat-input");
 const btnSendMessage = document.getElementById("btn-send-message");
+const threadsList = document.getElementById("threads-list");
+const btnNewSession = document.getElementById("btn-new-session");
 
 // Console/Trace UI Elements
 const consoleLogs = document.getElementById("console-logs");
 const btnClearConsole = document.getElementById("btn-clear-console");
 
+// Pipeline Status UI Elements
+const indicatorDot = document.getElementById("indicator-dot");
+const indicatorText = document.getElementById("indicator-text");
+const pipeIdle = document.getElementById("pipe-idle");
+const pipeThought = document.getElementById("pipe-thought");
+const pipeAction = document.getElementById("pipe-action");
+const pipeObservation = document.getElementById("pipe-observation");
+const pipeFinished = document.getElementById("pipe-finished");
+
 // Modal Elements
 const customToolModal = document.getElementById("custom-tool-modal");
 const customToolForm = document.getElementById("custom-tool-form");
+const modalToolType = document.getElementById("modal-tool-type");
 const modalToolMethod = document.getElementById("modal-tool-method");
+const httpFieldsContainer = document.getElementById("http-fields-container");
+const pythonCodeContainer = document.getElementById("python-code-container");
 const bodyTemplateContainer = document.getElementById("body-template-container");
 const closeModalBtn = document.querySelector(".close-modal");
 const cancelModalBtn = document.querySelector(".close-btn");
@@ -117,6 +132,9 @@ function setupEventHandlers() {
         }
     });
     
+    // Playground Thread Triggers
+    btnNewSession.addEventListener("click", createNewSession);
+    
     // Clear Console
     btnClearConsole.addEventListener("click", () => {
         consoleLogs.innerHTML = `
@@ -131,11 +149,22 @@ function setupEventHandlers() {
     btnAddCustomTool.addEventListener("click", () => {
         customToolModal.style.display = "block";
         customToolForm.reset();
-        bodyTemplateContainer.style.display = "none";
+        modalToolType.dispatchEvent(new Event("change"));
+    });
+    
+    modalToolType.addEventListener("change", (e) => {
+        if (e.target.value === "python") {
+            httpFieldsContainer.style.display = "none";
+            pythonCodeContainer.style.display = "block";
+        } else {
+            httpFieldsContainer.style.display = "block";
+            pythonCodeContainer.style.display = "none";
+            modalToolMethod.dispatchEvent(new Event("change"));
+        }
     });
     
     modalToolMethod.addEventListener("change", (e) => {
-        if (e.target.value === "POST" || e.target.value === "PUT") {
+        if (modalToolType.value === "http" && (e.target.value === "POST" || e.target.value === "PUT")) {
             bodyTemplateContainer.style.display = "flex";
         } else {
             bodyTemplateContainer.style.display = "none";
@@ -241,6 +270,10 @@ async function selectAgent(agentId) {
             tempVal.textContent = activeAgent.temperature;
             fieldMemLimit.value = activeAgent.memory_limit;
             
+            // Load Knowledge Base documents text
+            const kbDocs = activeAgent.knowledge_base || [];
+            fieldKnowledgeBase.value = kbDocs.join("\n\n");
+            
             // Trigger provider change to toggle API key container
             fieldLlmProvider.dispatchEvent(new Event("change"));
             
@@ -252,15 +285,110 @@ async function selectAgent(agentId) {
             // Render custom tools list
             renderCustomToolsList();
             
-            // Session Setup - load/create conversation
-            currentSessionId = `session_${activeAgent.id}`;
-            await fetchSessionHistory(currentSessionId);
+            // Reset visual pipeline to idle
+            setPipelineState("idle");
+            
+            // Session Setup - load multiple conversation threads for this agent
+            await fetchAgentSessions(activeAgent.id);
             
             // Update active sidebar state
             renderAgentList();
         }
     } catch (err) {
         console.error("Failed to select agent", err);
+    }
+}
+
+// Fetch all sessions/threads list for an agent
+async function fetchAgentSessions(agentId) {
+    try {
+        const response = await fetch(`/api/agents/${agentId}/sessions`);
+        if (response.ok) {
+            const sessions = await response.json();
+            
+            if (sessions.length > 0) {
+                // Render threads list and load the last active or first thread
+                currentSessionId = sessions[sessions.length - 1];
+                renderThreadsList(sessions);
+                await fetchSessionHistory(currentSessionId);
+            } else {
+                // If agent has no conversations yet, initialize a new default one
+                currentSessionId = `thread_${agentId}_${Date.now()}`;
+                renderThreadsList([currentSessionId]);
+                await fetchSessionHistory(currentSessionId);
+            }
+        }
+    } catch (err) {
+        console.error("Failed to load sessions list", err);
+    }
+}
+
+// Render threads sidebar
+function renderThreadsList(sessions) {
+    threadsList.innerHTML = "";
+    
+    sessions.forEach((sessId, index) => {
+        const li = document.createElement("li");
+        li.className = `thread-item ${currentSessionId === sessId ? 'active' : ''}`;
+        
+        // Display a clean title for the thread
+        const displayTitle = `Conversation #${index + 1}`;
+        
+        li.innerHTML = `
+            <span><i class="fa-regular fa-message text-xs"></i> ${displayTitle}</span>
+            <button class="btn-delete-thread" data-id="${sessId}" title="Delete Thread">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+        `;
+        
+        li.addEventListener("click", async (e) => {
+            // Prevent switching if clicking delete
+            if (e.target.closest(".btn-delete-thread")) return;
+            currentSessionId = sessId;
+            renderThreadsList(sessions);
+            await fetchSessionHistory(currentSessionId);
+        });
+        
+        li.querySelector(".btn-delete-thread").addEventListener("click", async (e) => {
+            const targetId = e.currentTarget.getAttribute("data-id");
+            if (confirm("Are you sure you want to delete this conversation thread?")) {
+                await deleteSession(targetId);
+            }
+        });
+        
+        threadsList.appendChild(li);
+    });
+}
+
+// Delete a session
+async function deleteSession(sessionId) {
+    try {
+        const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+        if (response.ok) {
+            // Refresh
+            if (activeAgent) {
+                await fetchAgentSessions(activeAgent.id);
+            }
+        }
+    } catch (err) {
+        console.error("Failed to delete session", err);
+    }
+}
+
+// Create new blank conversation thread
+async function createNewSession() {
+    if (!activeAgent || !activeAgent.id) {
+        alert("Please save your agent configuration first.");
+        return;
+    }
+    
+    currentSessionId = `thread_${activeAgent.id}_${Date.now()}`;
+    chatMessages.innerHTML = "";
+    renderChatPlaceholder();
+    
+    // Add current thread to UI lists
+    if (activeAgent) {
+        await fetchAgentSessions(activeAgent.id);
     }
 }
 
@@ -306,6 +434,7 @@ function createNewAgentForm() {
     fieldAgentId.value = "";
     tempVal.textContent = "0.7";
     apiKeyContainer.style.display = "none";
+    fieldKnowledgeBase.value = "";
     
     // Set some defaults
     toolCalculator.checked = true;
@@ -313,6 +442,7 @@ function createNewAgentForm() {
     toolWebFetch.checked = false;
     
     customToolsList.innerHTML = `<p class="no-items-text">No custom HTTP tools configured.</p>`;
+    threadsList.innerHTML = "";
     chatMessages.innerHTML = `
         <div class="chat-placeholder">
             <i class="fa-regular fa-comments chat-placeholder-icon"></i>
@@ -349,6 +479,12 @@ async function handleConfigSubmit(e) {
     // Custom tools are loaded from the activeAgent if editing, or empty array if new agent
     const custom_tools = activeAgent ? activeAgent.custom_tools : [];
     
+    // Parse Knowledge Base text documents
+    const knowledge_base = fieldKnowledgeBase.value
+        .split("\n\n")
+        .map(doc => doc.trim())
+        .filter(doc => doc.length > 0);
+        
     const agentConfigPayload = {
         id: id || "",
         name,
@@ -359,7 +495,8 @@ async function handleConfigSubmit(e) {
         temperature,
         memory_limit,
         tools,
-        custom_tools
+        custom_tools,
+        knowledge_base
     };
     
     try {
@@ -421,16 +558,22 @@ function renderCustomToolsList() {
     customToolsList.innerHTML = "";
     
     if (!activeAgent || !activeAgent.custom_tools || activeAgent.custom_tools.length === 0) {
-        customToolsList.innerHTML = `<p class="no-items-text">No custom HTTP tools added yet.</p>`;
+        customToolsList.innerHTML = `<p class="no-items-text">No custom tools added yet.</p>`;
         return;
     }
     
     activeAgent.custom_tools.forEach((tool, index) => {
         const card = document.createElement("div");
         card.className = "custom-tool-card-item";
+        
+        // Render customized badge for type
+        const typeBadge = tool.tool_type === "python" 
+            ? `<span class="badge badge-system">PYTHON</span>` 
+            : `<span class="badge badge-warning">${tool.method}</span>`;
+            
         card.innerHTML = `
             <div class="custom-tool-card-info">
-                <h4>${tool.name} <span class="badge badge-system">${tool.method}</span></h4>
+                <h4>${tool.name} ${typeBadge}</h4>
                 <p>${tool.description}</p>
             </div>
             <button type="button" class="btn-delete-tool" data-index="${index}" title="Remove Tool">
@@ -452,30 +595,47 @@ function handleAddCustomTool(e) {
     
     const name = document.getElementById("modal-tool-name").value.trim();
     const description = document.getElementById("modal-tool-desc").value.trim();
-    const method = modalToolMethod.value;
-    const url = document.getElementById("modal-tool-url").value.trim();
-    const headersStr = document.getElementById("modal-tool-headers").value.trim();
-    const body_template = document.getElementById("modal-tool-body").value.trim();
+    const tool_type = modalToolType.value;
     
-    // Parse headers JSON
-    let headers = null;
-    if (headersStr) {
-        try {
-            headers = JSON.parse(headersStr);
-        } catch (err) {
-            alert("Invalid JSON format in Headers. Please write valid JSON like: {\"Key\": \"Value\"}");
-            return;
-        }
-    }
-    
-    const newTool = {
+    let newTool = {
         name,
         description,
-        method,
-        url,
-        headers,
-        body_template: body_template || null
+        tool_type
     };
+    
+    if (tool_type === "python") {
+        const python_code = document.getElementById("modal-tool-code").value;
+        if (!python_code.includes("def run")) {
+            alert("Python script must define a function 'def run(input_str):' returning a string value.");
+            return;
+        }
+        newTool.python_code = python_code;
+    } else {
+        const method = modalToolMethod.value;
+        const url = document.getElementById("modal-tool-url").value.trim();
+        if (!url) {
+            alert("URL endpoint is required for HTTP integration.");
+            return;
+        }
+        const headersStr = document.getElementById("modal-tool-headers").value.trim();
+        const body_template = document.getElementById("modal-tool-body").value.trim();
+        
+        // Parse headers JSON
+        let headers = null;
+        if (headersStr) {
+            try {
+                headers = JSON.parse(headersStr);
+            } catch (err) {
+                alert("Invalid JSON format in Headers. Please write valid JSON like: {\"Key\": \"Value\"}");
+                return;
+            }
+        }
+        
+        newTool.method = method;
+        newTool.url = url;
+        newTool.headers = headers;
+        newTool.body_template = body_template || null;
+    }
     
     if (!activeAgent) {
         // Create a temporary mock agent configuration so we can add tools
@@ -489,7 +649,8 @@ function handleAddCustomTool(e) {
             temperature: parseFloat(fieldTemp.value),
             memory_limit: parseInt(fieldMemLimit.value),
             tools: [],
-            custom_tools: []
+            custom_tools: [],
+            knowledge_base: []
         };
     }
     
@@ -523,6 +684,58 @@ function appendMessageBubble(role, content) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+// Pipeline visualizer controls
+function setPipelineState(state) {
+    // Remove active class from all steps and connectors
+    const steps = [pipeIdle, pipeThought, pipeAction, pipeObservation, pipeFinished];
+    steps.forEach(step => step.classList.remove("active"));
+    
+    const connectors = document.querySelectorAll(".pipeline-connector");
+    connectors.forEach(conn => conn.classList.remove("active"));
+    
+    // Reset indicator classes
+    indicatorDot.className = "pulse-dot";
+    
+    switch (state) {
+        case "idle":
+            pipeIdle.classList.add("active");
+            indicatorDot.classList.add("grey");
+            indicatorText.textContent = "Agent is Idle";
+            break;
+            
+        case "thought":
+            pipeThought.classList.add("active");
+            connectors[0].classList.add("active");
+            indicatorDot.classList.add("orange");
+            indicatorText.textContent = "Agent is thinking (ReAct)...";
+            break;
+            
+        case "action":
+            pipeAction.classList.add("active");
+            connectors[0].classList.add("active");
+            connectors[1].classList.add("active");
+            indicatorDot.classList.add("purple");
+            indicatorText.textContent = "Agent is executing a tool...";
+            break;
+            
+        case "observation":
+            pipeObservation.classList.add("active");
+            connectors[0].classList.add("active");
+            connectors[1].classList.add("active");
+            connectors[2].classList.add("active");
+            indicatorDot.classList.add("cyan");
+            indicatorText.textContent = "Parsing tool output...";
+            break;
+            
+        case "finished":
+            pipeFinished.classList.add("active");
+            connectors.forEach(conn => conn.classList.add("active"));
+            indicatorDot.classList.add("green");
+            indicatorText.textContent = "Task completed successfully!";
+            break;
+    }
+}
+
 // Main chat sender & EventStream processing
 async function sendMessage() {
     const text = chatInput.value.trim();
@@ -540,6 +753,9 @@ async function sendMessage() {
     
     // Clear Console for fresh trace
     consoleLogs.innerHTML = "";
+    
+    // Set visual state to thinking
+    setPipelineState("thought");
     
     // Switch to playground tab to show the terminal trace in real-time
     tabPlaygroundBtn.click();
@@ -572,6 +788,7 @@ async function sendMessage() {
         if (!response.ok) {
             typingBubble.innerHTML = "Error: Failed to stream reasoning steps. Check terminal connection.";
             typingBubble.classList.add("error");
+            setPipelineState("idle");
             return;
         }
         
@@ -619,6 +836,7 @@ async function sendMessage() {
     } catch (err) {
         typingBubble.innerHTML = `Request Exception: ${err.message}`;
         typingBubble.classList.add("error");
+        setPipelineState("idle");
         console.error(err);
     }
 }
@@ -634,6 +852,21 @@ function processTraceEvent(event) {
     const type = event.type;
     const content = event.content;
     
+    // Update visual pipeline steps
+    if (type === "thought") {
+        setPipelineState("thought");
+    } else if (type === "action") {
+        setPipelineState("action");
+    } else if (type === "observation") {
+        setPipelineState("observation");
+    } else if (type === "final_answer") {
+        setPipelineState("finished");
+        setTimeout(() => setPipelineState("idle"), 3500);
+    } else if (type === "error") {
+        setPipelineState("idle");
+    }
+    
+    // Create console trace line
     const stepDiv = document.createElement("div");
     stepDiv.className = `log-step ${type}`;
     
