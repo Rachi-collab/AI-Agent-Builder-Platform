@@ -255,6 +255,52 @@
 
                         <!-- Chat Box panel -->
                         <div class="chat-panel">
+                            <!-- Multi-Agent Toggle Row -->
+                            <div class="multi-agent-toggle-bar card">
+                                <div class="collab-header">
+                                    <label class="switch-container">
+                                        <input type="checkbox" id="toggle-collab-mode">
+                                        <span class="slider-round"></span>
+                                        <span class="switch-label"><i class="fa-solid fa-people-group text-cyan"></i> Multi-Agent Collaboration Mode</span>
+                                    </label>
+                                </div>
+                                <div class="collab-selectors" id="collab-selectors-row" style="display: none;">
+                                    <div class="collab-agent-group">
+                                        <label for="select-agent-primary">Primary:</label>
+                                        <select id="select-agent-primary">
+                                            <!-- Loaded dynamically -->
+                                        </select>
+                                    </div>
+                                    <div class="collab-agent-group">
+                                        <label for="select-agent-reviewer">Reviewer:</label>
+                                        <select id="select-agent-reviewer">
+                                            <!-- Loaded dynamically -->
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Visual Multi-Agent Workflow diagram -->
+                            <div class="multi-agent-diagram card" id="collab-diagram-container" style="display: none;">
+                                <div class="diagram-node" id="node-agent1">
+                                    <i class="fa-solid fa-user-astronaut text-cyan"></i>
+                                    <span class="node-name" id="node-agent1-name">Primary Agent</span>
+                                    <span class="node-status" id="status-agent1">Idle</span>
+                                </div>
+                                <div class="diagram-arrow" id="arrow-1-to-2">➔</div>
+                                <div class="diagram-node" id="node-agent2">
+                                    <i class="fa-solid fa-user-shield text-purple"></i>
+                                    <span class="node-name" id="node-agent2-name">Reviewer Agent</span>
+                                    <span class="node-status" id="status-agent2">Idle</span>
+                                </div>
+                                <div class="diagram-arrow" id="arrow-2-to-1">➔</div>
+                                <div class="diagram-node" id="node-final">
+                                    <i class="fa-solid fa-square-poll-horizontal text-success"></i>
+                                    <span class="node-name">Refined Output</span>
+                                    <span class="node-status" id="status-final">Idle</span>
+                                </div>
+                            </div>
+
                             <div class="chat-messages-container" id="chat-messages">
                                 <div class="chat-placeholder">
                                     <i class="fa-regular fa-comments chat-placeholder-icon"></i>
