@@ -155,6 +155,15 @@ def simulate_mock_llm(prompt: str, step_num: int, last_observation: Optional[str
             expr = expr_match.group(1).strip() if expr_match else "2 + 2"
             return f"Thought: The user wants me to compute a mathematical expression. I will use the calculator tool to evaluate '{expr}'.\nAction: calculator\nAction Input: {expr}"
             
+        # Check if local knowledge retrieval is available
+        if "knowledge_retrieval" in active_tools:
+            return f"Thought: The user is asking a query. I should check my local knowledge base first to see if I have any relevant pre-loaded facts.\nAction: knowledge_retrieval\nAction Input: {query}"
+            
+        # Check if any custom python or API tools match keywords in the query
+        for tool_name in active_tools:
+            if tool_name not in ["calculator", "web_search", "web_fetch", "knowledge_retrieval"] and tool_name in query_lower:
+                return f"Thought: The user wants to execute the custom tool '{tool_name}'. I will invoke it with the query.\nAction: {tool_name}\nAction Input: {query}"
+
         # Check if weather custom tool or general weather query
         if "weather" in query_lower:
             city_match = re.search(r'in ([a-zA-Z\s]+)', query)
