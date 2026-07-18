@@ -131,6 +131,12 @@
                                     </div>
                                 </div>
 
+                                <div class="form-group">
+                                    <label for="field-knowledge-base">Agent Knowledge Base (Facts, one per line or double-newline)</label>
+                                    <textarea id="field-knowledge-base" rows="3" placeholder="e.g., Python was created by Guido van Rossum in 1991.&#10;Tokyo is the capital of Japan."></textarea>
+                                    <small class="helper-text">Add custom facts or context documents. The agent will retrieve these facts using the knowledge_retrieval tool.</small>
+                                </div>
+
                                 <div class="form-actions">
                                     <button type="submit" class="btn btn-success" id="btn-save-agent">
                                         <i class="fa-solid fa-floppy-disk"></i> Save Configuration
@@ -196,7 +202,57 @@
 
                 <!-- Tab: Chat Playground -->
                 <div id="tab-playground" class="tab-content">
+                    <!-- Dynamic ReAct State Visual Pipeline -->
+                    <div class="pipeline-card">
+                        <div class="pipeline-header-row">
+                            <h3 class="pipeline-title"><i class="fa-solid fa-network-wired text-cyan"></i> Agent Reasoning State Map</h3>
+                            <div class="active-run-indicator" id="active-run-indicator">
+                                <span class="pulse-dot grey" id="indicator-dot"></span>
+                                <span id="indicator-text">Agent is Idle</span>
+                            </div>
+                        </div>
+                        <div class="pipeline-steps-container">
+                            <div class="pipeline-step active" id="pipe-idle">
+                                <i class="fa-solid fa-hourglass-start"></i>
+                                <span>Ready</span>
+                            </div>
+                            <div class="pipeline-connector"></div>
+                            <div class="pipeline-step" id="pipe-thought">
+                                <i class="fa-solid fa-brain"></i>
+                                <span>LLM Thought</span>
+                            </div>
+                            <div class="pipeline-connector"></div>
+                            <div class="pipeline-step" id="pipe-action">
+                                <i class="fa-solid fa-gears"></i>
+                                <span>Running Tool</span>
+                            </div>
+                            <div class="pipeline-connector"></div>
+                            <div class="pipeline-step" id="pipe-observation">
+                                <i class="fa-solid fa-eye"></i>
+                                <span>Observation</span>
+                            </div>
+                            <div class="pipeline-connector"></div>
+                            <div class="pipeline-step" id="pipe-finished">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span>Completed</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="playground-layout">
+                        <!-- Left sidebar for multiple chat threads -->
+                        <div class="threads-sidebar card">
+                            <div class="threads-header">
+                                <span class="threads-title"><i class="fa-solid fa-comments"></i> Threads</span>
+                                <button class="btn btn-secondary btn-sm" id="btn-new-session" title="New Chat Thread">
+                                    <i class="fa-solid fa-plus"></i> New
+                                </button>
+                            </div>
+                            <ul class="threads-list" id="threads-list">
+                                <!-- Loaded dynamically -->
+                            </ul>
+                        </div>
+
                         <!-- Chat Box panel -->
                         <div class="chat-panel">
                             <div class="chat-messages-container" id="chat-messages">
@@ -249,28 +305,47 @@
                     <label for="modal-tool-desc">Description (Help LLM know when to call this)</label>
                     <textarea id="modal-tool-desc" rows="2" placeholder="e.g., Search user profiles on GitHub. Input is username." required></textarea>
                 </div>
-                <div class="form-row">
-                    <div class="form-group col-3">
-                        <label for="modal-tool-method">HTTP Method</label>
-                        <select id="modal-tool-method">
-                            <option value="GET">GET</option>
-                            <option value="POST">POST</option>
-                            <option value="PUT">PUT</option>
-                            <option value="DELETE">DELETE</option>
-                        </select>
-                    </div>
-                    <div class="form-group col-9">
-                        <label for="modal-tool-url">Endpoint URL (Use `{query}` for input injection)</label>
-                        <input type="url" id="modal-tool-url" placeholder="e.g., https://api.github.com/users/{query}" required>
-                    </div>
-                </div>
+                
                 <div class="form-group">
-                    <label for="modal-tool-headers">Headers (JSON format, optional)</label>
-                    <textarea id="modal-tool-headers" rows="2" placeholder='e.g., {"Authorization": "token XXX"}'></textarea>
+                    <label for="modal-tool-type">Tool Integration Type</label>
+                    <select id="modal-tool-type">
+                        <option value="http">HTTP REST API Request</option>
+                        <option value="python">Custom Python Script</option>
+                    </select>
                 </div>
-                <div class="form-group" id="body-template-container" style="display: none;">
-                    <label for="modal-tool-body">POST Request Body (Template, use `{query}` for input injection)</label>
-                    <textarea id="modal-tool-body" rows="3" placeholder='e.g., {"search_term": "{query}"}'></textarea>
+
+                <!-- HTTP Tool Fields -->
+                <div id="http-fields-container">
+                    <div class="form-row">
+                        <div class="form-group col-3">
+                            <label for="modal-tool-method">HTTP Method</label>
+                            <select id="modal-tool-method">
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-9">
+                            <label for="modal-tool-url">Endpoint URL (Use `{query}` for input injection)</label>
+                            <input type="url" id="modal-tool-url" placeholder="e.g., https://api.github.com/users/{query}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="modal-tool-headers">Headers (JSON format, optional)</label>
+                        <textarea id="modal-tool-headers" rows="2" placeholder='e.g., {"Authorization": "token XXX"}'></textarea>
+                    </div>
+                    <div class="form-group" id="body-template-container" style="display: none;">
+                        <label for="modal-tool-body">POST Request Body (Template, use `{query}` for input injection)</label>
+                        <textarea id="modal-tool-body" rows="3" placeholder='e.g., {"search_term": "{query}"}'></textarea>
+                    </div>
+                </div>
+
+                <!-- Python Tool Fields -->
+                <div class="form-group" id="python-code-container" style="display: none;">
+                    <label for="modal-tool-code">Python Code (Must define `def run(input_str):` returning a string)</label>
+                    <textarea id="modal-tool-code" rows="6" class="code-font" placeholder="def run(input_str):&#10;    # Write your tool execution logic here&#10;    return f'Processed: {input_str}'"></textarea>
+                    <small class="helper-text">Libraries 'math', 're', 'json', and 'datetime' are pre-imported and available.</small>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary close-btn">Cancel</button>
