@@ -1,33 +1,26 @@
 # AI Agent Builder Platform
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python Badge"/>
-  <img src="https://img.shields.io/badge/FastAPI-0.109+-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI Badge"/>
-  <img src="https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black" alt="JavaScript Badge"/>
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License Badge"/>
-</p>
-
 An intelligent, full-stack **AI Agent Builder Platform** that enables users to visually design, configure, and execute custom autonomous agents. It implements a robust **ReAct (Reasoning and Action)** execution loop, supporting tool integration, short-term memory persistence, and real-time thought-process logging via Server-Sent Events (SSE).
 
 ---
 
-## ✨ Features
+## Features
 
-- 🧠 **Dynamic ReAct Loop**: Seamlessly executes recursive *Thought ➔ Action ➔ Observation ➔ Thought* cycles until resolving user queries.
-- 🔌 **Dual-Mode LLM Support**:
+- **Dynamic ReAct Loop**: Seamlessly executes recursive *Thought ➔ Action ➔ Observation ➔ Thought* cycles until resolving user queries.
+- **Dual-Mode LLM Support**:
   - **Live Mode**: Direct raw HTTP endpoints to integrate **Google Gemini** or **OpenAI** APIs.
   - **Mock Mode**: A rule-based local interpreter allowing tool execution simulation and multi-step reasoning cycles completely offline (no API key required).
-- 🛠️ **Built-in Tool Library**:
+- **Built-in Tool Library**:
   - **Math Calculator**: Secure math expression evaluator.
   - **Web Search**: Live search results via a DuckDuckGo HTML scraper.
   - **Web Fetcher**: Crawls webpage text, stripping CSS and scripts to return summary-ready text blocks.
-- 📡 **Custom API Tool Builder**: Design custom HTTP tools (GET, POST, PUT, DELETE) dynamically using visual templates (e.g., calling GitHub, weather, or custom endpoints).
-- 💻 **Trace Terminal**: Renders real-time reasoning logs in a beautiful console-like visual interface.
-- 💾 **File-based Persistence**: Saves agent templates and chat session logs locally.
+- **Custom API Tool Builder**: Design custom HTTP tools (GET, POST, PUT, DELETE) dynamically using visual templates (e.g., calling GitHub, weather, or custom endpoints).
+- **Trace Terminal**: Renders real-time reasoning logs in a beautiful console-like visual interface.
+- **File-based Persistence**: Saves agent templates and chat session logs locally.
 
 ---
 
-## 📐 Architecture & Flow
+## Architecture & Flow
 
 ```mermaid
 graph TD
@@ -43,7 +36,7 @@ graph TD
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Backend**: Python 3, FastAPI, Uvicorn, Pydantic, HTTPX.
 - **Frontend**: HTML5, Vanilla CSS3 (custom dark/neon theme, glassmorphic grids), Vanilla JavaScript (Readable Stream API parser).
@@ -51,7 +44,7 @@ graph TD
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Prerequisites
 Ensure you have **Python 3.8+** installed.
@@ -86,7 +79,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) in your web browser to acc
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 A comprehensive suite of unit and integration tests is included. Run the following command:
 ```bash
@@ -95,7 +88,7 @@ python -m pytest
 
 ---
 
-## 📖 Usage Guide
+## Usage Guide
 
 1. **Configure Your Agent**: Under the **Configuration** tab, give your agent a name, system prompt, select an LLM provider, and toggle access to built-in tools.
 2. **Create Custom Tools**: Click **Add API Tool** under the custom tools sidebar, specify the URL endpoint (using `{query}` for input injection), set headers, and select the HTTP method.
