@@ -4,7 +4,7 @@ This document details the chronological development history, architectural desig
 
 ---
 
-## 📅 Project Milestones & Timeline
+##  Project Milestones & Timeline
 
 ### Phase 1: Core Platform Setup
 - **Objective**: Establish the FastAPI backend engine, configure core data schemas, and design a modern, glassmorphic UI.
@@ -58,7 +58,7 @@ This document details the chronological development history, architectural desig
 
 ---
 
-## 🧪 Testing Summary
+##  Testing Summary
 
 A comprehensive test suite verifies the platform stability. All 15 tests pass:
 - Core parser and tools registry resolution.
