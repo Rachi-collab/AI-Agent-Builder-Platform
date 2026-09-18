@@ -89,6 +89,7 @@
   ---
   
   ## Usage Guide
+
   
   1. **Configure Your Agent**: Under the **Configuration** tab, give your agent a name, system prompt, select an LLM provider, and toggle access to built-in tools.
   2. **Create Custom Tools**: Click **Add API Tool** under the custom tools sidebar, specify the URL endpoint (using `{query}` for input injection), set headers, and select the HTTP method.
