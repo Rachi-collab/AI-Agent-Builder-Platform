@@ -738,8 +738,7 @@ function removeCustomTool(index) {
 function formatMessageContent(content) {
     if (!content) return "";
     
-    let html = escapeHTML(content);
-    
+    let html = escapeHTML(content);    
     // Parse block code sequences: ```lang \n code ```
     html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
         return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
@@ -965,7 +964,7 @@ async function sendMessage() {
     const typingBubble = bubbles[bubbles.length - 1];
     
     if (collabActive) {
-        // Multi-Agent Collaboration Mode run
+        // Multi-Agent Collaboration 
         setCollabDiagramState("agent1_thinking");
         
         const payload = {
