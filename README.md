@@ -47,9 +47,11 @@
   ## Quick Start
   
   ### 1. Prerequisites
+  
   Ensure you have **Python 3.8+** installed.
   
   ### 2. Setup Directory & Virtual Environment
+  
   ```bash
   # Clone the repository
   git clone https://github.com/Rachi-collab/AI-Agent-Builder-Platform.git
